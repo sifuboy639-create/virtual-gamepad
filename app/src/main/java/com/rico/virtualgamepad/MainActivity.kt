@@ -34,6 +34,13 @@ class MainActivity : Activity() {
     private lateinit var webView: WebView
     private var hidDevice: BluetoothHidDevice? = null
     private var hostDevice: BluetoothDevice? = null
+    @Volatile private var fastButtons: Int = 0
+    @Volatile private var fastLx = 0.0
+    @Volatile private var fastLy = 0.0
+    @Volatile private var fastRx = 0.0
+    @Volatile private var fastRy = 0.0
+    @Volatile private var fastLt = 0.0
+    @Volatile private var fastRt = 0.0
     private val report = ByteArray(8)
     private val reportLock = Any()
     private val hidSender: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
@@ -140,6 +147,17 @@ class MainActivity : Activity() {
     }
 
     inner class BtBridgeToJs {
+        @JavascriptInterface
+        fun onFastState(lx: Double, ly: Double, rx: Double, ry: Double, lt: Double, rt: Double, buttons: Int) {
+            fastLx = lx
+            fastLy = ly
+            fastRx = rx
+            fastRy = ry
+            fastLt = lt
+            fastRt = rt
+            fastButtons = buttons
+        }
+
         @JavascriptInterface
         fun onState(json: String) {
             try {
@@ -248,7 +266,29 @@ class MainActivity : Activity() {
     private fun sendLatestHidReport() {
         val device = hostDevice ?: return
         val hid = hidDevice ?: return
-        val snapshot = synchronized(reportLock) { report.copyOf() }
+        val mask = fastButtons
+        var b0 = 0
+        var b1 = 0
+        if (mask and 0x1000 != 0) b0 = b0 or 0x01
+        if (mask and 0x2000 != 0) b0 = b0 or 0x02
+        if (mask and 0x4000 != 0) b0 = b0 or 0x04
+        if (mask and 0x8000 != 0) b0 = b0 or 0x08
+        if (mask and 0x0100 != 0) b0 = b0 or 0x10
+        if (mask and 0x0200 != 0) b0 = b0 or 0x20
+        if (mask and 0x0020 != 0) b0 = b0 or 0x40
+        if (mask and 0x0010 != 0) b0 = b0 or 0x80
+        if (mask and 0x0040 != 0) b1 = b1 or 0x01
+        if (mask and 0x0080 != 0) b1 = b1 or 0x02
+        if (mask and 0x0001 != 0) b1 = b1 or 0x04
+        if (mask and 0x0002 != 0) b1 = b1 or 0x08
+        if (mask and 0x0004 != 0) b1 = b1 or 0x10
+        if (mask and 0x0008 != 0) b1 = b1 or 0x20
+        val snapshot = byteArrayOf(
+            b0.toByte(), b1.toByte(),
+            axisByte(fastLx), axisByte(fastLy),
+            axisByte(fastRx), axisByte(fastRy),
+            triggerByte(fastLt), triggerByte(fastRt)
+        )
         try { hid.sendReport(device, REPORT_ID, snapshot) } catch (_: Exception) {}
     }
 
