@@ -59,6 +59,27 @@ html,body{background:#000}
  .dpad{width:120px;height:120px;left:4%;bottom:9%}.dpad button{width:43px;height:43px}.up,.down{left:38px}.left,.right{top:38px}
  .faces{width:130px;height:130px;right:4%;bottom:9%}.faces button{width:47px;height:47px}.faces .Y,.faces .A{left:41px}.faces .X,.faces .B{top:41px}
 }
+
+/* Fluid network flow indicator */
+.flowPanel{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:7px;padding:6px 7px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(7,9,13,.28);overflow:hidden}
+.flowItem{position:relative;height:24px;display:flex;align-items:center;gap:6px;min-width:0}
+.flowLabel{font-size:8px;color:var(--dim);width:39px;flex:none}
+.flowTrack{position:relative;height:10px;flex:1;border-radius:999px;background:rgba(255,255,255,.045);overflow:hidden;box-shadow:inset 0 0 6px rgba(0,0,0,.25)}
+.flowTrack:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent);transform:translateX(-100%);animation:flowSheen 2.1s linear infinite}
+.flowStream{position:absolute;inset:0;overflow:hidden}
+.flowStream i{position:absolute;top:50%;width:4px;height:4px;margin-top:-2px;border-radius:50%;filter:blur(.1px);opacity:.82;box-shadow:0 0 7px currentColor;animation:flowMove 1.35s cubic-bezier(.37,0,.63,1) infinite}
+.flowStream i:nth-child(1){animation-delay:-.95s}.flowStream i:nth-child(2){animation-delay:-.58s}.flowStream i:nth-child(3){animation-delay:-.2s}
+.flowIn .flowStream i{left:-8px;color:#5fbfdf;background:#8be7ff}
+.flowOut .flowStream i{right:-8px;color:#e8a33d;background:#ffd18a}
+.flowIn .flowStream{background:linear-gradient(90deg,rgba(95,191,223,.03),rgba(95,191,223,.12),rgba(95,191,223,.02))}
+.flowOut .flowStream{background:linear-gradient(90deg,rgba(232,163,61,.02),rgba(232,163,61,.12),rgba(232,163,61,.03))}
+.flowItem.pulse .flowTrack{animation:flowPulse .34s ease-out}
+@keyframes flowMove{0%{transform:translateX(0) scale(.65);opacity:0}12%{opacity:.9}50%{transform:translateX(42%) scale(1)}88%{opacity:.9}100%{transform:translateX(118%) scale(.55);opacity:0}}
+@keyframes flowMoveReverse{0%{transform:translateX(0) scale(.65);opacity:0}12%{opacity:.9}50%{transform:translateX(-42%) scale(1)}88%{opacity:.9}100%{transform:translateX(-118%) scale(.55);opacity:0}}
+.flowOut .flowStream i{animation-name:flowMoveReverse}
+@keyframes flowSheen{to{transform:translateX(100%)}}
+@keyframes flowPulse{0%{box-shadow:inset 0 0 6px rgba(0,0,0,.25)}45%{box-shadow:inset 0 0 9px rgba(255,255,255,.08),0 0 10px rgba(232,163,61,.16)}100%{box-shadow:inset 0 0 6px rgba(0,0,0,.25)}}
+@media (prefers-reduced-motion:reduce){.flowTrack:before,.flowStream i{animation-duration:3.5s}}
 </style>
 </head>
 <body>
@@ -108,6 +129,11 @@ html,body{background:#000}
       <label>Size<input id="customSize" type="range" min="65" max="160" value="100"><output id="customSizeValue">100%</output></label>
     </div>
     <div class="customActions"><button id="btn-reset-layout">Reset</button><span class="small" style="margin:0">Changes save automatically.</span></div>
+    <div class="flowPanel" aria-hidden="true">
+      <div class="flowItem flowIn" id="flow-in"><span class="flowLabel">Incoming</span><div class="flowTrack"><div class="flowStream"><i></i><i></i><i></i></div></div></div>
+      <div class="flowItem flowOut" id="flow-out"><span class="flowLabel">Outgoing</span><div class="flowTrack"><div class="flowStream"><i></i><i></i><i></i></div></div></div>
+    </div>
+
   </div>
 </div>
 
@@ -120,7 +146,17 @@ let buttonAction={"btn-a":"A","btn-b":"B","btn-x":"X","btn-y":"Y","btn-lb":"LB",
 const layoutIds=['btn-back','btn-start','btn-lb','lt-track','stick-l','btn-l3','dpad-up','dpad-down','dpad-left','dpad-right','btn-rb','rt-track','btn-y','btn-a','btn-x','btn-b','stick-r','btn-r3'];
 const names={"btn-back":"Share","btn-start":"Options","btn-lb":"L1","lt-track":"L2","stick-l":"Left Stick","btn-l3":"L3","dpad-up":"D-pad Up","dpad-down":"D-pad Down","dpad-left":"D-pad Left","dpad-right":"D-pad Right","btn-rb":"R1","rt-track":"R2","btn-y":"△","btn-a":"×","btn-x":"□","btn-b":"○","stick-r":"Right Stick","btn-r3":"R3"};
 function vibrate(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
-function send(){const p=JSON.stringify(state);if(p===lastSent)return;lastSent=p;if(window.AndroidBT&&window.AndroidBT.onFastState){try{window.AndroidBT.onFastState(state.lx,state.ly,state.rx,state.ry,state.lt,state.rt,state.b)}catch(e){}return}if(window.AndroidTV&&window.AndroidTV.onState){try{window.AndroidTV.onState(p)}catch(e){}return}if(ws&&ws.readyState===1){try{ws.send(p)}catch(e){}}}
+
+function pulseFlow(direction){
+  const e=document.getElementById(direction==='in'?'flow-in':'flow-out');
+  if(!e)return;
+  e.classList.remove('pulse');
+  void e.offsetWidth;
+  e.classList.add('pulse');
+  clearTimeout(e._pulseTimer);
+  e._pulseTimer=setTimeout(()=>e.classList.remove('pulse'),360);
+}
+function send(){pulseFlow('out');const p=JSON.stringify(state);if(p===lastSent)return;lastSent=p;if(window.AndroidBT&&window.AndroidBT.onFastState){try{window.AndroidBT.onFastState(state.lx,state.ly,state.rx,state.ry,state.lt,state.rt,state.b)}catch(e){}return}if(window.AndroidTV&&window.AndroidTV.onState){try{window.AndroidTV.onState(p)}catch(e){}return}if(ws&&ws.readyState===1){try{ws.send(p)}catch(e){}}}
 function setStatus(cls,text){const e=document.getElementById('status');e.className='status statusBottom '+(cls||'');document.getElementById('statusText').textContent=(cls==='connected'?'Connected':(cls==='connecting'?'Connecting…':'Disconnected'));}
 function actionFlag(id){return BTN[buttonAction[id]]||0}
 function setButton(id,on,el){const f=actionFlag(id);if(!f)return;if(on)state.b|=f;else state.b&=~f;if(el)el.classList.toggle('on',on);send()}
@@ -139,7 +175,7 @@ function enterCustomize(){customizing=true;document.body.classList.add('customiz
 function exitCustomize(){customizing=false;document.body.classList.remove('customizing');const panel=document.getElementById('custom-panel');panel.classList.remove('open');panel.classList.add('closing');document.getElementById('btn-customize').classList.remove('active');document.querySelectorAll('.layoutTarget.selected').forEach(e=>e.classList.remove('selected'));clearTimeout(window.__customCloseTimer);window.__customCloseTimer=setTimeout(()=>{panel.classList.remove('closing')},280)}
 function resetLayout(){layout={};buttonAction={"btn-a":"A","btn-b":"B","btn-x":"X","btn-y":"Y","btn-lb":"LB","btn-rb":"RB","btn-l3":"L3","btn-r3":"R3","btn-start":"START","btn-back":"BACK","dpad-up":"DPAD_UP","dpad-down":"DPAD_DOWN","dpad-left":"DPAD_LEFT","dpad-right":"DPAD_RIGHT"};try{localStorage.removeItem('vz-hub-layout');localStorage.removeItem('vz-hub-actions')}catch(e){}loadActions();loadLayout();selectControl(selectedControl||layoutIds[0])}
 function wsUrl(){const ip=document.getElementById('ip-input').value.trim(),port=document.getElementById('port-input').value.trim()||'8848';return 'ws://'+ip+':'+port+'/ws'}
-function connect(){const ip=document.getElementById('ip-input').value.trim();if(!ip){document.getElementById('settingsErr').textContent='Enter the receiver IP address.';return}try{localStorage.setItem('pad-ip',ip);localStorage.setItem('pad-port',document.getElementById('port-input').value.trim()||'8848')}catch(e){}wantConnected=true;setStatus('connecting','Connecting…');try{ws&&ws.close()}catch(e){}ws=new WebSocket(wsUrl());ws.onopen=()=>{setStatus('connected','Connected');document.getElementById('settings').classList.remove('open');lastSent='';send()};ws.onclose=()=>{setStatus('','Disconnected');if(wantConnected){clearTimeout(reconnectTimer);reconnectTimer=setTimeout(()=>{reconnectTimer=null;if(wantConnected)connect()},3000)}};ws.onerror=()=>{document.getElementById('settingsErr').textContent='Could not reach that address.'}}
+function connect(){const ip=document.getElementById('ip-input').value.trim();if(!ip){document.getElementById('settingsErr').textContent='Enter the receiver IP address.';return}try{localStorage.setItem('pad-ip',ip);localStorage.setItem('pad-port',document.getElementById('port-input').value.trim()||'8848')}catch(e){}wantConnected=true;setStatus('connecting','Connecting…');try{ws&&ws.close()}catch(e){}ws=new WebSocket(wsUrl());ws.onopen=()=>{setStatus('connected','Connected');pulseFlow('in');document.getElementById('settings').classList.remove('open');lastSent='';send()};ws.onmessage=()=>pulseFlow('in');ws.onclose=()=>{setStatus('','Disconnected');if(wantConnected){clearTimeout(reconnectTimer);reconnectTimer=setTimeout(()=>{reconnectTimer=null;if(wantConnected)connect()},3000)}};ws.onerror=()=>{document.getElementById('settingsErr').textContent='Could not reach that address.'}}
 function disconnect(){wantConnected=false;clearTimeout(reconnectTimer);try{ws&&ws.close()}catch(e){}setStatus('','Disconnected')}
 document.getElementById('gear').onclick=()=>document.getElementById('settings').classList.add('open');
 document.getElementById('btn-close-settings').onclick=()=>document.getElementById('settings').classList.remove('open');
