@@ -8,6 +8,8 @@
     <application
         android:allowBackup="true"
         android:label="@string/app_name"
+        android:icon="@drawable/vz_hub_icon"
+        android:roundIcon="@drawable/vz_hub_icon"
         android:usesCleartextTraffic="true"
         android:theme="@style/AppTheme">
         <activity
