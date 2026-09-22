@@ -16,6 +16,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
+import android.view.View
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -25,6 +26,8 @@ import java.net.DatagramSocket
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 class MainActivity : Activity() {
@@ -32,6 +35,8 @@ class MainActivity : Activity() {
     private var hidDevice: BluetoothHidDevice? = null
     private var hostDevice: BluetoothDevice? = null
     private val report = ByteArray(8)
+    private val reportLock = Any()
+    private val hidSender: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,6 +44,7 @@ class MainActivity : Activity() {
         setContentView(R.layout.activity_main)
         webView = findViewById(R.id.webview)
         configureWebView()
+        hidSender.scheduleAtFixedRate({ sendLatestHidReport() }, 0, 8, TimeUnit.MILLISECONDS)
         AlertDialog.Builder(this)
             .setTitle("Choose mode")
             .setItems(arrayOf("Bluetooth (direct gamepad)", "Android TV over Wi-Fi")) { _, which ->
@@ -54,6 +60,8 @@ class MainActivity : Activity() {
         webView.settings.domStorageEnabled = true
         webView.settings.mediaPlaybackRequiresUserGesture = false
         webView.settings.setSupportZoom(false)
+        webView.settings.offscreenPreRaster = true
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         webView.webViewClient = WebViewClient()
     }
 
@@ -153,15 +161,16 @@ class MainActivity : Activity() {
                 if (mask and 0x0002 != 0) b1 = b1 or 0x08
                 if (mask and 0x0004 != 0) b1 = b1 or 0x10
                 if (mask and 0x0008 != 0) b1 = b1 or 0x20
-                report[0] = b0.toByte()
-                report[1] = b1.toByte()
-                report[2] = axisByte(s.optDouble("lx", 0.0))
-                report[3] = axisByte(s.optDouble("ly", 0.0))
-                report[4] = axisByte(s.optDouble("rx", 0.0))
-                report[5] = axisByte(s.optDouble("ry", 0.0))
-                report[6] = triggerByte(s.optDouble("lt", 0.0))
-                report[7] = triggerByte(s.optDouble("rt", 0.0))
-                hostDevice?.let { hidDevice?.sendReport(it, REPORT_ID, report) }
+                synchronized(reportLock) {
+                    report[0] = b0.toByte()
+                    report[1] = b1.toByte()
+                    report[2] = axisByte(s.optDouble("lx", 0.0))
+                    report[3] = axisByte(s.optDouble("ly", 0.0))
+                    report[4] = axisByte(s.optDouble("rx", 0.0))
+                    report[5] = axisByte(s.optDouble("ry", 0.0))
+                    report[6] = triggerByte(s.optDouble("lt", 0.0))
+                    report[7] = triggerByte(s.optDouble("rt", 0.0))
+                }
             } catch (_: Exception) {}
         }
         private fun axisByte(v: Double): Byte = (((v.coerceIn(-1.0, 1.0) + 1.0) / 2.0 * 255.0).toInt()).coerceIn(0, 255).toByte()
@@ -235,6 +244,14 @@ class MainActivity : Activity() {
         }
     }
 
+    @SuppressLint("MissingPermission")
+    private fun sendLatestHidReport() {
+        val device = hostDevice ?: return
+        val hid = hidDevice ?: return
+        val snapshot = synchronized(reportLock) { report.copyOf() }
+        try { hid.sendReport(device, REPORT_ID, snapshot) } catch (_: Exception) {}
+    }
+
     private fun notifyStatus(text: String, cls: String) {
         val jsText = JSONObject.quote(text)
         val jsCls = JSONObject.quote(cls)
@@ -244,6 +261,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        try { hidSender.shutdownNow() } catch (_: Exception) {}
         try { hidDevice?.unregisterApp() } catch (_: Exception) {}
         try { hidDevice?.let { (getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter.closeProfileProxy(BluetoothProfile.HID_DEVICE, it) } } catch (_: Exception) {}
         super.onDestroy()
