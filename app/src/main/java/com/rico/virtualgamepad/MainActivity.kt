@@ -262,6 +262,12 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun axisByte(v: Double): Byte =
+        (((v.coerceIn(-1.0, 1.0) + 1.0) / 2.0 * 255.0).toInt()).coerceIn(0, 255).toByte()
+
+    private fun triggerByte(v: Double): Byte =
+        ((v.coerceIn(0.0, 1.0) * 255.0).toInt()).coerceIn(0, 255).toByte()
+
     @SuppressLint("MissingPermission")
     private fun sendLatestHidReport() {
         val device = hostDevice ?: return
