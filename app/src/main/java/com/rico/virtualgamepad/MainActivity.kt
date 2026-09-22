@@ -110,7 +110,7 @@ class MainActivity : Activity() {
     @SuppressLint("MissingPermission")
     private fun registerHidApp() {
         val sdp = BluetoothHidDeviceAppSdpSettings(
-            "Virtual Gamepad", "Phone touch controller", "Virtual Gamepad",
+            "vz-hub", "Phone touch controller", "vz-hub",
             BluetoothHidDevice.SUBCLASS2_GAMEPAD, GamepadHid.DESCRIPTOR
         )
         hidDevice?.registerApp(sdp, null, null, Executors.newSingleThreadExecutor(), object : BluetoothHidDevice.Callback() {
