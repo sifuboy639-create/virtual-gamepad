@@ -1,4 +1,5 @@
 name: Build Virtual Gamepad APK
+# Build current main, including restored icon and UI refinements
 
 on:
   push:
