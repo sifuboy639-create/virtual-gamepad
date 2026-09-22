@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Virtual Gamepad</string>
-    <string name="ime_name">Virtual Gamepad Keyboard</string>
+    <string name="app_name">vz-hub</string>
+    <string name="ime_name">vz-hub Gamepad Keyboard</string>
     <string name="ime_description">Receives gamepad controls from the phone over local Wi-Fi.</string>
 </resources>
